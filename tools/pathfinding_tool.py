@@ -77,6 +77,8 @@ def handle_find_nearest_coin(params: dict) -> dict:
             grid = json.loads(grid_raw)
         except json.JSONDecodeError:
             grid = []
+    else:
+        grid = grid_raw
 
     if not grid:
         return {'error': '지도 정보가 필요합니다.', 'found': False}

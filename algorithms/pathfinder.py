@@ -45,16 +45,21 @@ def astar(
     def heuristic(a: Tuple[int, int], b: Tuple[int, int]) -> int:
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
-    open_heap: List[Tuple[int, Tuple[int, int]]] = []
-    heapq.heappush(open_heap, (0, start))
+    counter = 0
+    open_heap: List = []
+    heapq.heappush(open_heap, (0, counter, start))
     came_from: Dict[Tuple[int, int], Tuple[int, int]] = {}
     g_score: Dict[Tuple[int, int], int] = {start: 0}
     f_score: Dict[Tuple[int, int], int] = {start: heuristic(start, goal)}
+    closed: set = set()
 
     directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
 
     while open_heap:
-        _, current = heapq.heappop(open_heap)
+        _, _tie, current = heapq.heappop(open_heap)
+        if current in closed:
+            continue
+        closed.add(current)
 
         if current == goal:
             path = []
@@ -74,7 +79,8 @@ def astar(
                 came_from[neighbor] = current
                 g_score[neighbor] = tentative_g
                 f_score[neighbor] = tentative_g + heuristic(neighbor, goal)
-                heapq.heappush(open_heap, (f_score[neighbor], neighbor))
+                counter += 1
+                heapq.heappush(open_heap, (f_score[neighbor], counter, neighbor))
 
     return {"path": [], "cost": -1, "algorithm": "a_star", "found": False}
 

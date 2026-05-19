@@ -44,7 +44,7 @@ class HintStore:
     def mark_coin_collected(self, position: Tuple[int, int]) -> None:
         """코인 수집 완료 표시."""
         for coin in self.coin_locations:
-            if coin['pos'] == position:
+            if coin['pos'] == position and not coin['collected']:
                 coin['collected'] = True
                 self.current_score += coin.get('value', 1)
                 break

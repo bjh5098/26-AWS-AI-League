@@ -1,3 +1,4 @@
 .env
 .claude/
 .omc/state/
+infra_report.md

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # deploy.sh — Lambda 함수 빠른 배포 스크립트
 # 사용법: ./deploy.sh [tool_name]
 #   tool_name: pathfinding_tool | coin_collector_tool | state_query_tool | all (기본값)
@@ -7,7 +7,7 @@ set -e
 
 # .env 로드
 if [ -f .env ]; then
-  export $(grep -v '^#' .env | xargs)
+  set -a; source .env; set +a
 else
   echo "ERROR: .env 파일이 없습니다. cp .env.template .env 후 값을 채워주세요."
   exit 1
