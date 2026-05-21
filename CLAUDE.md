@@ -29,16 +29,16 @@
 | 파일 | 역할 |
 |------|------|
 | `agent/supervisor_prompt_v2.txt` | **최종 슈퍼바이저 프롬프트** (UI에 복사) |
-| `tools/pathfinding_tool_v2.py` | **최종 Pathfinding Lambda** (c30/treasure 회피, 126스텝) |
+| `tools/pathfinding_tool.py` | **최종 Pathfinding Lambda** (c30/treasure 회피, 126스텝) |
 | `tools/blue_brain_tool.py` | Blue Brain Lambda (Python 코드 실행) |
 | `tools/dark_prophet_tool.py` | Dark Prophet Lambda (DuckDuckGo 웹 검색) |
 | `tools/medical_api_tool.py` | Medical API Lambda (자연어→JSON 변환) |
 | `agent/supervisor_prompt_plain.txt` | 슈퍼바이저 프롬프트 v1 (마크다운 없는 버전) |
-| `tools/pathfinding_tool.py` | Pathfinding Lambda v1 (이전 버전) |
+| `tools/pathfinding_tool_v1.py` | Pathfinding Lambda v1 (이전 버전, 아카이브) |
 
 ---
 
-## 경로탐색 알고리즘 (pathfinding_tool_v2.py)
+## 경로탐색 알고리즘 (pathfinding_tool.py)
 
 ### smart 전략 핵심 로직
 1. 타겟을 **도달 가능성** 기준으로 분류 (c30 통과 없이 가능 vs 불가)
@@ -122,8 +122,8 @@
 │   └── pathfinding_subagent_prompt.txt
 │
 ├── tools/
-│   ├── pathfinding_tool_v2.py        # ★ 최종 Pathfinding Lambda
-│   ├── pathfinding_tool.py           # v1 (이전 버전)
+│   ├── pathfinding_tool.py           # ★ 최종 Pathfinding Lambda (v2)
+│   ├── pathfinding_tool_v1.py        # v1 (이전 버전, 아카이브)
 │   ├── blue_brain_tool.py            # c2 코드 실행
 │   ├── dark_prophet_tool.py          # c4 웹 검색
 │   └── medical_api_tool.py           # c18 JSON 추출

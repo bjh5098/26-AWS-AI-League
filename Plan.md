@@ -21,7 +21,7 @@
 - [x] Medical_API_Specialist — JSON 추출 Lambda (c18)
 
 ### Lambda 도구
-- [x] `AgentCoreGatewayTool-Pathfinding` — `tools/pathfinding_tool_v2.py`
+- [x] `AgentCoreGatewayTool-Pathfinding` — `tools/pathfinding_tool.py`
 - [x] `AgentCoreGatewayTool-BlueBrain` — `tools/blue_brain_tool.py`
 - [x] `AgentCoreGatewayTool-DarkProphet` — `tools/dark_prophet_tool.py`
 - [x] `AgentCoreGatewayTool-MedicalAPI` — `tools/medical_api_tool.py`

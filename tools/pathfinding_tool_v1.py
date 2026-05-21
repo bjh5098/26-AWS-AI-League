@@ -1,5 +1,5 @@
 """
-pathfinding_tool_v2.py — Pathfinding Lambda (클러스터 기반 최적 경로)
+pathfinding_tool.py — Pathfinding Lambda (전략 자동 선택 + 맵 자동 분석)
 
 맵 셀 키:
   c1: Violent Violet (+400, 가드레일 챌린지)
@@ -20,9 +20,11 @@ import re
 from collections import deque
 
 DIRECTIONS = [(-1, 0, "up"), (1, 0, "down"), (0, -1, "left"), (0, 1, "right")]
-AVOID_CELLS = {"wall", "c8", "treasure"}
+AVOID_CELLS = {"wall", "c8"}
 
-TARGET_CELLS = {'c7', 'c4', 'c2', 'c3', 'c18', 'c1', 'c5', 'c6'}
+# 챌린지 우선순위 (낮을수록 먼저)
+PRIORITY = {'c7': 0, 'c4': 1, 'c2': 2, 'c3': 3, 'c18': 4, 'c1': 5, 'c5': 6, 'c6': 7}
+TARGET_CELLS = set(PRIORITY.keys())
 
 
 def _parse_start(pos):
@@ -49,9 +51,22 @@ def _parse_start(pos):
 
 
 def lambda_handler(event, context):
+    """
+    Pathfinding Lambda — 맵 자동 분석 + 전략 자동 선택
+
+    전략:
+      smart (기본) - 맵 분석 후 최적 경로 자동: c40→고가치셀→c30→treasure
+      key_chain    - c40 → c30 → treasure 강제
+      avoid_spikes - c8 회피 최단경로
+      safe_coins   - c8 회피 + c7 코인
+      max_score    - 전체 수집 + c8 회피 (= smart)
+      swift        - BFS 최단경로
+      get_coins    - c7 코인 탐욕 수집
+    """
     try:
         body = json.loads(event['body']) if 'body' in event and isinstance(event['body'], str) else event
 
+        print(f"DEBUG: event keys={list(body.keys())}")
         game_map = body.get('game_map', [])
 
         if game_map:
@@ -82,6 +97,7 @@ def lambda_handler(event, context):
         if not treasure:
             return _err(400, 'No treasure found on map')
 
+        # 전략 파싱
         strategy = str(body.get('strategy', 'smart')).lower().strip()
         if 'key' in strategy or 'chain' in strategy:
             strategy = 'key_chain'
@@ -101,6 +117,7 @@ def lambda_handler(event, context):
             strategy = 'smart'
 
         map_info = _analyze_map(game_map, rows, cols)
+        print(f"MAP ANALYSIS: {map_info}")
 
         fn_map = {
             'smart': smart_path,
@@ -120,9 +137,11 @@ def lambda_handler(event, context):
             'strategy': strategy,
             'map_analysis': map_info,
         }
+        print(f"RESULT: strategy={strategy} steps={len(path)} start={list(start_pos)}")
         return {'statusCode': 200, 'body': json.dumps(result)}
 
     except Exception as e:
+        print(f"ERROR: {e}")
         import traceback
         print(traceback.format_exc())
         return _err(500, str(e))
@@ -165,15 +184,38 @@ def _bfs(game_map, rows, cols, start, goal, blocked=None):
     return None
 
 
-def _bfs_dist(game_map, rows, cols, start, goal, blocked=None):
-    p = _bfs(game_map, rows, cols, start, goal, blocked)
-    return len(p) if p is not None else 9999
+def _greedy_collect(game_map, rows, cols, start, targets, blocked=None):
+    if blocked is None:
+        blocked = {'wall'}
+    board = [row[:] for row in game_map]
+    r, c = start
+    full_path = []
+    remaining = list(targets)
+    while remaining:
+        best, best_path = None, None
+        for target in remaining:
+            p = _bfs(board, rows, cols, (r, c), target, blocked)
+            if p is None:
+                p = _bfs(board, rows, cols, (r, c), target, {'wall'})
+            if p is not None and (best_path is None or len(p) < len(best_path)):
+                best, best_path = target, p
+        if best is None:
+            break
+        full_path.extend(best_path)
+        r, c = best
+        board[r][c] = 'normal'
+        remaining.remove(best)
+    return full_path, (r, c), board
 
 
 def smart_path(game_map, rows, cols, start, treasure):
     """
-    Top-first 전략: 시작점 근처(상단) 먼저 수집 → c40 → 하단 수집 → c30 → treasure
-    모든 타겟 방문, c8 회피, c40→c30 순서 보장, treasure 맨 마지막
+    맵 자동 분석 → 최적 경로:
+    1. c40 먼저 (c30 체인 보장)
+    2. 현재 위치에서 가장 가까운 고가치 셀 탐욕 수집 (c30 제외)
+    3. c30 방문
+    4. treasure 도달
+    c8 회피, 중복 방문 없음
     """
     board = [row[:] for row in game_map]
     r, c = start
@@ -182,20 +224,18 @@ def smart_path(game_map, rows, cols, start, treasure):
     c40_pos = next(((ri, ci) for ri in range(rows) for ci in range(cols) if board[ri][ci] == 'c40'), None)
     c30_pos = next(((ri, ci) for ri in range(rows) for ci in range(cols) if board[ri][ci] == 'c30'), None)
 
-    remaining = {}
-    for ri in range(rows):
-        for ci in range(cols):
-            if board[ri][ci] in TARGET_CELLS:
-                remaining[(ri, ci)] = board[ri][ci]
+    # 수집 대상 (c30 제외, 우선순위 기반)
+    remaining = {
+        (ri, ci): board[ri][ci]
+        for ri in range(rows) for ci in range(cols)
+        if board[ri][ci] in TARGET_CELLS
+    }
 
-    # c40 미방문 상태에서는 c30도 회피 (통과 시 챌린지 발동 → 열쇠 없으면 -5생명)
-    avoid_before_key = AVOID_CELLS | ({'c30'} if c30_pos else set())
-
-    def visit(pos, blocked):
+    def visit(pos):
         nonlocal r, c
-        p = _bfs(board, rows, cols, (r, c), pos, blocked)
+        p = _bfs(board, rows, cols, (r, c), pos, AVOID_CELLS)
         if p is None:
-            p = _bfs(board, rows, cols, (r, c), pos, blocked - {'c8'})
+            p = _bfs(board, rows, cols, (r, c), pos, {'wall'})
         if p is not None:
             full_path.extend(p)
             r, c = pos
@@ -203,53 +243,35 @@ def smart_path(game_map, rows, cols, start, treasure):
             return True
         return False
 
-    def greedy_nearest(targets, blocked):
-        while targets:
-            best, best_dist = None, 9999
-            for pos in list(targets.keys()):
-                p = _bfs(board, rows, cols, (r, c), pos, blocked)
-                if p is None:
-                    p = _bfs(board, rows, cols, (r, c), pos, blocked - {'c8'})
-                if p and len(p) < best_dist:
-                    best, best_dist = pos, len(p)
-            if best is None:
-                break
-            targets.pop(best)
-            remaining.pop(best, None)
-            visit(best, blocked)
-
-    # 타겟 분류: c30 없이 도달 가능 vs c30 통과 필수
-    before_key_targets = {}
-    after_key_targets = {}
-    for pos, cell in remaining.items():
-        if pos == c30_pos:
-            continue
-        p = _bfs(board, rows, cols, start, pos, avoid_before_key)
-        if p is not None:
-            before_key_targets[pos] = cell
-        else:
-            after_key_targets[pos] = cell
-
-    # Phase 1: c30 없이 도달 가능한 타겟 수집
-    greedy_nearest(before_key_targets, avoid_before_key)
-
-    # Phase 2: c40 방문
+    # 1. c40 먼저
     if c40_pos:
         remaining.pop(c40_pos, None)
-        visit(c40_pos, avoid_before_key)
+        visit(c40_pos)
 
-    # Phase 3: c30 통과 필수 타겟 수집 (이제 c40 획득 후 c30 통과 안전)
-    greedy_nearest(after_key_targets, AVOID_CELLS)
+    # 2. 탐욕: 현재 위치에서 가장 가까운 고가치 셀 (거리/점수 비율 기준)
+    while remaining:
+        best, best_score = None, None
+        for pos, cell in list(remaining.items()):
+            p = _bfs(board, rows, cols, (r, c), pos, AVOID_CELLS)
+            if p is None:
+                p = _bfs(board, rows, cols, (r, c), pos, {'wall'})
+            if p is None:
+                continue
+            dist = max(len(p), 1)
+            # c7은 퀴즈 없이 무조건 이득, 짧은 거리면 우선
+            score = dist - (20 if cell == 'c7' else 0)
+            if best_score is None or score < best_score:
+                best, best_score = pos, score
+        if best is None:
+            break
+        cell = remaining.pop(best)
+        visit(best)
 
-    # Phase 4: 혹시 남은 타겟 처리
-    leftover = {pos: cell for pos, cell in remaining.items() if pos != c30_pos}
-    greedy_nearest(leftover, AVOID_CELLS)
-
-    # Phase 5: c30
+    # 3. c30 방문 (c40 이후 보장됨)
     if c30_pos and board[c30_pos[0]][c30_pos[1]] == 'c30':
-        visit(c30_pos, AVOID_CELLS)
+        visit(c30_pos)
 
-    # Phase 6: treasure (맨 마지막)
+    # 4. treasure
     p = _bfs(board, rows, cols, (r, c), treasure, AVOID_CELLS)
     if p is None:
         p = _bfs(board, rows, cols, (r, c), treasure, {'wall'}) or []
@@ -258,6 +280,7 @@ def smart_path(game_map, rows, cols, start, treasure):
 
 
 def key_chain_path(game_map, rows, cols, start, treasure):
+    """c40(열쇠) 강제 → c30(문) → treasure. c8 회피."""
     board = [row[:] for row in game_map]
     r, c = start
     full_path = []
@@ -296,10 +319,10 @@ def avoid_spikes_path(game_map, rows, cols, start, treasure):
 def safe_coins_path(game_map, rows, cols, start, treasure):
     board = [row[:] for row in game_map]
     coins = [(ri, ci) for ri in range(rows) for ci in range(cols) if board[ri][ci] == 'c7']
-    path, pos, board = _greedy_cluster(board, rows, cols, start, coins, AVOID_CELLS)
-    p = _bfs(board, rows, cols, pos, treasure, AVOID_CELLS)
+    path, (r, c), board = _greedy_collect(board, rows, cols, start, coins, AVOID_CELLS)
+    p = _bfs(board, rows, cols, (r, c), treasure, AVOID_CELLS)
     if p is None:
-        p = _bfs(board, rows, cols, pos, treasure, {'wall'}) or []
+        p = _bfs(board, rows, cols, (r, c), treasure, {'wall'}) or []
     return path + p
 
 
@@ -307,10 +330,10 @@ def all_challenges_path(game_map, rows, cols, start, treasure):
     CHALLENGE = {'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c18'}
     board = [row[:] for row in game_map]
     targets = [(ri, ci) for ri in range(rows) for ci in range(cols) if board[ri][ci] in CHALLENGE]
-    path, pos, board = _greedy_cluster(board, rows, cols, start, targets, AVOID_CELLS)
-    p = _bfs(board, rows, cols, pos, treasure, AVOID_CELLS)
+    path, (r, c), board = _greedy_collect(board, rows, cols, start, targets, AVOID_CELLS)
+    p = _bfs(board, rows, cols, (r, c), treasure, AVOID_CELLS)
     if p is None:
-        p = _bfs(board, rows, cols, pos, treasure, {'wall'}) or []
+        p = _bfs(board, rows, cols, (r, c), treasure, {'wall'}) or []
     return path + p
 
 
@@ -321,53 +344,6 @@ def swift_path(game_map, rows, cols, start, treasure):
 def get_coins_path(game_map, rows, cols, start, treasure):
     board = [row[:] for row in game_map]
     coins = [(ri, ci) for ri in range(rows) for ci in range(cols) if board[ri][ci] == 'c7']
-    path, pos, board = _greedy_cluster(board, rows, cols, start, coins, {'wall'})
-    p = _bfs(board, rows, cols, pos, treasure, {'wall'}) or []
+    path, (r, c), board = _greedy_collect(board, rows, cols, start, coins, {'wall'})
+    p = _bfs(board, rows, cols, (r, c), treasure, {'wall'}) or []
     return path + p
-
-
-def _greedy_cluster(game_map, rows, cols, start, targets, blocked=None):
-    if blocked is None:
-        blocked = {'wall'}
-    board = [row[:] for row in game_map]
-    r, c = start
-    full_path = []
-    remaining = list(targets)
-    CLUSTER_RADIUS = 4
-
-    while remaining:
-        nearby = []
-        far_best, far_best_dist = None, 9999
-
-        for target in remaining:
-            p = _bfs(board, rows, cols, (r, c), target, blocked)
-            if p is None:
-                p = _bfs(board, rows, cols, (r, c), target, {'wall'})
-            if p is None:
-                continue
-            dist = len(p)
-            if dist <= CLUSTER_RADIUS:
-                nearby.append((target, dist, p))
-            elif dist < far_best_dist:
-                far_best, far_best_dist = target, dist
-
-        if nearby:
-            nearby.sort(key=lambda x: x[1])
-            target, _, p = nearby[0]
-            full_path.extend(p)
-            r, c = target
-            board[r][c] = 'normal'
-            remaining.remove(target)
-        elif far_best:
-            p = _bfs(board, rows, cols, (r, c), far_best, blocked)
-            if p is None:
-                p = _bfs(board, rows, cols, (r, c), far_best, {'wall'})
-            if p:
-                full_path.extend(p)
-                r, c = far_best
-                board[r][c] = 'normal'
-            remaining.remove(far_best)
-        else:
-            break
-
-    return full_path, (r, c), board
