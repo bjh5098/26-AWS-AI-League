@@ -38,6 +38,10 @@
 
 ## Competition Format
 
+### Game Play
+
+![Game Play](assets/game-screenshot.png)
+
 ### Game Rules
 
 제한 시간(5분) 내에 10x10 던전 맵을 탐색하여:
@@ -45,6 +49,8 @@
 2. **챌린지(c1~c5, c18, c30)** 해결로 고득점 획득
 3. **보물(treasure)** 도달로 게임 완료
 4. **생명(5개)** 보존으로 보너스 극대화
+
+![Game Guide](assets/game-map.png)
 
 ### Constraints
 
@@ -68,6 +74,10 @@
 
 ## Solution Architecture
 
+### Agent Architecture
+
+![Architecture](assets/architecture.png)
+
 ### Agent Design
 
 ```
@@ -90,6 +100,10 @@
 │                                                   │
 └─────────────────────────────────────────────────┘
 ```
+
+### AI League UI (Agent Configuration)
+
+![AgentCore UI](assets/agentcore-components.png)
 
 ### Amazon Bedrock AgentCore
 
