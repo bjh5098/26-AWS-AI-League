@@ -98,11 +98,11 @@
 
 | 파일 | 결과 | 비고 |
 |------|------|------|
-| `game-events-2026-05-21T05-01-11.json` | 1차 테스트 | 초기 버전 |
-| `game-events-2026-05-21T05-14-48.json` | 2차 테스트 | c40/c30 로직 문제 |
-| `game-events-2026-05-21T05-20-06.json` | 3차 테스트 | c1 가드레일 이슈 |
-| `game-events-2026-05-21T05-36-39.json` | **12,232점** | best run |
-| `game-events-2026-05-21T05-57-09.json` | 2,139점 | Lambda 미배포로 c30 사망 |
+| `game-logs/game-events-2026-05-21T05-01-11.json` | 1차 테스트 | 초기 버전 |
+| `game-logs/game-events-2026-05-21T05-14-48.json` | 2차 테스트 | c40/c30 로직 문제 |
+| `game-logs/game-events-2026-05-21T05-20-06.json` | 3차 테스트 | c1 가드레일 이슈 |
+| `game-logs/game-events-2026-05-21T05-36-39.json` | **12,232점** | best run |
+| `game-logs/game-events-2026-05-21T05-57-09.json` | 2,139점 | Lambda 미배포로 c30 사망 |
 
 ---
 
@@ -110,9 +110,9 @@
 ```
 .
 ├── CLAUDE.md                         # 이 파일
-├── Plan.md                           # 대회 실행 체크리스트
+├── Plan.md                           # 대회 결과 요약
 ├── game4_analysis.md                 # 4차 게임 분석 + 개선 방향
-├── game-events-*.json                # 게임 로그 (5회분)
+├── game-logs/                        # 게임 로그 (5회분)
 │
 ├── agent/
 │   ├── supervisor_prompt_v2.txt      # ★ 최종 슈퍼바이저 프롬프트

@@ -221,7 +221,7 @@ SageMaker AI Studio에서 Qwen3-0.6B 모델을 RLVR(Reinforcement Learning with 
 │   └── faithfulness_reward_function.py   # Stage 2 reward function
 │
 ├── originals/                         # Original code backup (for recovery)
-├── game-events-*.json                 # Game logs (5 runs)
+├── game-logs/                         # Game event logs (5 runs)
 ├── assets/                            # Screenshots
 ├── cheatsheets/                       # Service-specific cheatsheets
 └── docs/                              # Workshop guides
